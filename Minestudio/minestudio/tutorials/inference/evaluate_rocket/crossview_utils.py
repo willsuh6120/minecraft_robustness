@@ -3129,6 +3129,7 @@ class CrossViewSession:
         self.last_policy_action = None
         self.last_policy_logprob = None
         self.last_policy_value = None
+        self.last_policy_value_raw = None
         self.last_memory_in = None
         self.last_model_input = None
         self.last_segment_area = 0
@@ -3296,6 +3297,7 @@ class CrossViewSession:
         self.last_policy_action = None
         self.last_policy_logprob = None
         self.last_policy_value = None
+        self.last_policy_value_raw = None
         self.last_memory_in = None
         self.last_model_input = None
 
@@ -4478,6 +4480,7 @@ class CrossViewSession:
             self.last_policy_action = None
             self.last_policy_logprob = None
             self.last_policy_value = None
+            self.last_policy_value_raw = None
             self.last_memory_in = None
             self.last_model_input = None
         else:
@@ -4510,9 +4513,19 @@ class CrossViewSession:
             except Exception:
                 self.last_policy_logprob = None
             try:
-                self.last_policy_value = float(self.agent.cache_latents["vpred"].item())
+                cached_vpred = self.agent.cache_latents["vpred"]
+                value_head_owner = getattr(self.agent, "model", self.agent)
+                value_head = getattr(value_head_owner, "value_head", None)
+                self.last_policy_value = float(cached_vpred.reshape(-1)[0].item())
+                if value_head is not None:
+                    with torch.no_grad():
+                        raw_vpred = value_head.denormalize(cached_vpred)
+                    self.last_policy_value_raw = float(raw_vpred.reshape(-1)[0].detach().cpu().item())
+                else:
+                    self.last_policy_value_raw = None
             except Exception:
                 self.last_policy_value = None
+                self.last_policy_value_raw = None
 
         self.last_action_summary = self.summarize_agent_action(action)
         self.obs, self.reward, terminated, truncated, self.info = self.env.step(action)
@@ -4525,7 +4538,7 @@ class CrossViewSession:
         self.image_history.append(self.current_image.copy())
         return self.current_image
 
-    def estimate_current_policy_value(self) -> Optional[float]:
+    def estimate_current_policy_value(self) -> Optional[Dict[str, float]]:
         if not hasattr(self, "agent") or not hasattr(self, "obs"):
             return None
         try:
@@ -4545,7 +4558,21 @@ class CrossViewSession:
             cached_vpred = getattr(self.agent, "vpred", None)
             try:
                 self.agent.get_action(obs, self.state, deterministic=True, input_shape="*")
-                return float(self.agent.cache_latents["vpred"].item())
+                current_vpred = self.agent.cache_latents["vpred"]
+                value_head_owner = getattr(self.agent, "model", self.agent)
+                value_head = getattr(value_head_owner, "value_head", None)
+                value_norm = float(current_vpred.reshape(-1)[0].item())
+                if value_head is None:
+                    return {
+                        "value_norm": value_norm,
+                        "value_raw": value_norm,
+                    }
+                with torch.no_grad():
+                    value_raw = value_head.denormalize(current_vpred)
+                return {
+                    "value_norm": value_norm,
+                    "value_raw": float(value_raw.reshape(-1)[0].detach().cpu().item()),
+                }
             finally:
                 if cached_latents is not None:
                     self.agent.cache_latents = cached_latents

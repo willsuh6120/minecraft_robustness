@@ -207,6 +207,9 @@ def parse_args():
         default="heads",
         choices=["value", "heads", "heads_last", "crossview_small", "full_except_vision"],
     )
+    parser.add_argument("--vf-warmup-iters", type=int, default=0)
+    parser.add_argument("--zero-initial-vf", action="store_true")
+    parser.add_argument("--calibrate-value-normalizer", action="store_true")
     parser.add_argument(
         "--final-eval-model-mode",
         type=str,
@@ -2312,7 +2315,7 @@ def execute_phase_rollouts(
     }
 
 
-def build_update_cmd(args, run_dir: Path, out_dir: Path, model_path: str) -> List[str]:
+def build_update_cmd(args, run_dir: Path, out_dir: Path, model_path: str, iteration_idx: int) -> List[str]:
     cfg_base_ref_model_path = resolve_cfg_base_ref_model_path(args)
     kl_anchor_model_path = resolve_kl_anchor_model_path(args)
     cmd = [
@@ -2333,6 +2336,8 @@ def build_update_cmd(args, run_dir: Path, out_dir: Path, model_path: str) -> Lis
         str(out_dir),
         "--epochs",
         str(args.ppo_epochs),
+        "--iteration-idx",
+        str(iteration_idx),
         "--learning-rate",
         str(args.ppo_learning_rate),
         "--ppo-clip",
@@ -2363,6 +2368,8 @@ def build_update_cmd(args, run_dir: Path, out_dir: Path, model_path: str) -> Lis
         str(args.loss_focus_top_k),
         "--trainable-scope",
         str(args.trainable_scope),
+        "--vf-warmup-iters",
+        str(args.vf_warmup_iters),
     ]
     if cfg_base_ref_model_path:
         cmd.extend(["--cfg-base-ref-model-path", cfg_base_ref_model_path])
@@ -2372,6 +2379,10 @@ def build_update_cmd(args, run_dir: Path, out_dir: Path, model_path: str) -> Lis
         cmd.append("--normalize-advantage")
     if args.clip_vloss:
         cmd.append("--clip-vloss")
+    if args.zero_initial_vf:
+        cmd.append("--zero-initial-vf")
+    if args.calibrate_value_normalizer:
+        cmd.append("--calibrate-value-normalizer")
     return cmd
 
 
@@ -2804,7 +2815,7 @@ def main():
                         ensure_ascii=False,
                     ),
                 )
-            run_command(build_update_cmd(args, update_input_root, update_root, current_model_path), env)
+            run_command(build_update_cmd(args, update_input_root, update_root, current_model_path, int(iteration_idx)), env)
             update_wall_time = time.perf_counter() - update_started_at
             update_run_dir = latest_subdir(update_root)
             updated_model_path = update_run_dir / "model.pt"

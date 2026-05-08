@@ -56,6 +56,9 @@ UPDATE_FRAGMENT_BATCH_SIZE="${UPDATE_FRAGMENT_BATCH_SIZE:-4}"
 TRAINABLE_SCOPE="${TRAINABLE_SCOPE:-heads}"
 NORMALIZE_ADVANTAGE="${NORMALIZE_ADVANTAGE:-1}"
 CLIP_VLOSS="${CLIP_VLOSS:-1}"
+VF_WARMUP_ITERS="${VF_WARMUP_ITERS:-1}"
+ZERO_INITIAL_VF="${ZERO_INITIAL_VF:-0}"
+CALIBRATE_VALUE_NORMALIZER="${CALIBRATE_VALUE_NORMALIZER:-1}"
 
 VIDEO_WORKERS="${VIDEO_WORKERS:-4}"
 BASELINE_VIDEO_EPISODES="${BASELINE_VIDEO_EPISODES:-1}"
@@ -86,6 +89,55 @@ resolve_asset_dir_from_source() {
   fi
   if [[ -n "${SOURCE_RUN_ROOT}" && -d "${SOURCE_RUN_ROOT}/assets" ]]; then
     ASSET_DIR="$(find_latest_subdir "${SOURCE_RUN_ROOT}/assets")"
+  fi
+}
+
+resolve_source_env_conf_dir() {
+  if [[ -n "${SOURCE_ENV_CONF_DIR}" && -d "${SOURCE_ENV_CONF_DIR}" ]]; then
+    return 0
+  fi
+
+  local manifest_path=""
+  if [[ -n "${TRAIN_BANK_DIR}" && -f "${TRAIN_BANK_DIR}/bank_manifest.json" ]]; then
+    manifest_path="${TRAIN_BANK_DIR}/bank_manifest.json"
+  elif [[ -n "${BANK_VIEW_ROOT}" && -f "${BANK_VIEW_ROOT}/splits/full16/bank_manifest.json" ]]; then
+    manifest_path="${BANK_VIEW_ROOT}/splits/full16/bank_manifest.json"
+  fi
+
+  if [[ -n "${manifest_path}" ]]; then
+    local resolved=""
+    resolved="$("${PYTHON_BIN}" - <<'PY' "${manifest_path}"
+import json
+import sys
+from pathlib import Path
+
+manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for item in manifest.get("instance_worlds") or []:
+    for key in ("generated_task_group_dir", "task_group_path"):
+        raw_value = str(item.get(key) or "").strip()
+        if not raw_value:
+            continue
+        path = Path(raw_value)
+        try:
+            is_dir = path.is_dir()
+        except PermissionError:
+            is_dir = False
+        if not is_dir:
+            continue
+        if (path / "mine_coal.yaml").exists():
+            print(path)
+            raise SystemExit(0)
+print("")
+PY
+)"
+    if [[ -n "${resolved}" ]]; then
+      SOURCE_ENV_CONF_DIR="${resolved}"
+    fi
+  fi
+
+  if [[ -z "${SOURCE_ENV_CONF_DIR}" || ! -d "${SOURCE_ENV_CONF_DIR}" ]]; then
+    echo "Need SOURCE_ENV_CONF_DIR or a fixed-bank manifest with readable generated_task_group_dir entries." >&2
+    exit 1
   fi
 }
 
@@ -262,6 +314,7 @@ run_training_iteration() {
     --update-fragment-batch-size "${UPDATE_FRAGMENT_BATCH_SIZE}" \
     --loss-focus-mode uniform \
     --trainable-scope "${TRAINABLE_SCOPE}" \
+    --vf-warmup-iters "${VF_WARMUP_ITERS}" \
     --min-successful-fragments 0 \
     --final-eval-model-mode last \
     --collect-video-mode skip \
@@ -273,6 +326,8 @@ run_training_iteration() {
     --skip-final-eval \
     $( [[ "${NORMALIZE_ADVANTAGE}" == "1" ]] && printf '%s' "--normalize-advantage" ) \
     $( [[ "${CLIP_VLOSS}" == "1" ]] && printf '%s' "--clip-vloss" ) \
+    $( [[ "${ZERO_INITIAL_VF}" == "1" ]] && printf '%s' "--zero-initial-vf" ) \
+    $( [[ "${CALIBRATE_VALUE_NORMALIZER}" == "1" ]] && printf '%s' "--calibrate-value-normalizer" ) \
     --skip-video \
     --out-dir "${pilot_out}"
 
@@ -337,7 +392,11 @@ write_summary() {
 - collect_mode: \`${COLLECT_MODE}\`
 - train_iters: \`${TRAIN_ITERS}\`
 - collect_episodes_per_iter: \`${COLLECT_EPISODES}\`
+- vf_warmup_iters: \`${VF_WARMUP_ITERS}\`
+- zero_initial_vf: \`${ZERO_INITIAL_VF}\`
+- calibrate_value_normalizer: \`${CALIBRATE_VALUE_NORMALIZER}\`
 - source_run_root: \`${SOURCE_RUN_ROOT}\`
+- source_env_conf_dir: \`${SOURCE_ENV_CONF_DIR}\`
 - bank_view_root: \`${BANK_VIEW_ROOT}\`
 - train_bank: \`${TRAIN_BANK_DIR}\`
 - latest_model_path: \`$(cat "${experiment_root}/latest_model_path.txt")\`
@@ -348,9 +407,11 @@ EOF
 
 main() {
   ensure_bank_views
+  resolve_source_env_conf_dir
   prepare_collect_schedule
 
   log "source_run_root=${SOURCE_RUN_ROOT:-n/a}"
+  log "source_env_conf_dir=${SOURCE_ENV_CONF_DIR}"
   log "bank_view_root=${BANK_VIEW_ROOT}"
   log "train_bank_dir=${TRAIN_BANK_DIR}"
   log "probe_asset_dir=${PROBE_ASSET_DIR}"

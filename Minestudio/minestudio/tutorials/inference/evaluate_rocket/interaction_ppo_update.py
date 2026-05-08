@@ -72,6 +72,10 @@ def parse_args():
         default="heads",
         choices=["value", "heads", "heads_last", "crossview_small", "full_except_vision"],
     )
+    parser.add_argument("--iteration-idx", type=int, default=1)
+    parser.add_argument("--vf-warmup-iters", type=int, default=0)
+    parser.add_argument("--zero-initial-vf", action="store_true")
+    parser.add_argument("--calibrate-value-normalizer", action="store_true")
     return parser.parse_args()
 
 
@@ -256,17 +260,21 @@ def find_fragment_paths(run_dir: Path) -> List[Path]:
 
 def compute_gae_from_fragment(fragment: Dict, denormalizer, gamma: float, gae_lambda: float) -> Tuple[torch.Tensor, torch.Tensor]:
     rewards = fragment["reward"].float()
-    old_vpred = fragment["old_value"].float()
-    denormalizer_device = old_vpred.device
-    try:
-        denormalizer_device = next(denormalizer.__self__.parameters()).device
-    except Exception:
+    old_value_raw = fragment.get("old_value_raw")
+    if old_value_raw is not None:
+        old_values = old_value_raw.float().reshape(-1).cpu()
+    else:
+        old_vpred = fragment.get("old_value_norm", fragment["old_value"]).float()
+        denormalizer_device = old_vpred.device
         try:
-            denormalizer_device = next(denormalizer.__self__.buffers()).device
+            denormalizer_device = next(denormalizer.__self__.parameters()).device
         except Exception:
-            denormalizer_device = old_vpred.device
-    with torch.no_grad():
-        old_values = denormalizer(old_vpred.to(denormalizer_device)).detach().reshape(-1).cpu()
+            try:
+                denormalizer_device = next(denormalizer.__self__.buffers()).device
+            except Exception:
+                denormalizer_device = old_vpred.device
+        with torch.no_grad():
+            old_values = denormalizer(old_vpred.to(denormalizer_device)).detach().reshape(-1).cpu()
 
     terminated_flags = fragment.get("terminated")
     truncated_flags = fragment.get("truncated")
@@ -278,7 +286,7 @@ def compute_gae_from_fragment(fragment: Dict, denormalizer, gamma: float, gae_la
         truncated_flags = torch.zeros_like(terminated_flags, dtype=torch.bool)
     else:
         truncated_flags = truncated_flags.bool()
-    bootstrap_value_raw = fragment.get("bootstrap_value", 0.0)
+    bootstrap_value_raw = fragment.get("bootstrap_value_raw", fragment.get("bootstrap_value", 0.0))
     if isinstance(bootstrap_value_raw, torch.Tensor):
         bootstrap_value = float(bootstrap_value_raw.detach().reshape(-1)[0].item())
     else:
@@ -419,6 +427,154 @@ def aggregate_advantage_stats(fragments: List[Dict]) -> Tuple[float, float]:
     if std < 1e-8:
         std = 1.0
     return mean, std
+
+
+def summarize_fragment_dataset(fragments: List[Dict]) -> Dict[str, float]:
+    if not fragments:
+        return {
+            "return_raw_mean": 0.0,
+            "return_raw_std": 0.0,
+            "return_raw_min": 0.0,
+            "return_raw_max": 0.0,
+            "old_value_raw_mean": 0.0,
+            "old_value_raw_std": 0.0,
+            "old_value_norm_mean": 0.0,
+            "old_value_norm_std": 0.0,
+            "bootstrap_value_raw_mean": 0.0,
+            "bootstrap_value_raw_std": 0.0,
+            "bootstrap_value_norm_mean": 0.0,
+            "bootstrap_value_norm_std": 0.0,
+            "bootstrap_valid_ratio": 0.0,
+            "truncated_ratio": 0.0,
+        }
+
+    returns = torch.cat([fragment["returns"].reshape(-1).float().cpu() for fragment in fragments], dim=0)
+    old_value_norm = torch.cat(
+        [fragment.get("old_value_norm", fragment["old_value"]).reshape(-1).float().cpu() for fragment in fragments],
+        dim=0,
+    )
+    old_value_raw_tensors = [fragment.get("old_value_raw") for fragment in fragments if fragment.get("old_value_raw") is not None]
+    old_value_raw = (
+        torch.cat([tensor.reshape(-1).float().cpu() for tensor in old_value_raw_tensors], dim=0)
+        if old_value_raw_tensors
+        else torch.zeros(0, dtype=torch.float32)
+    )
+    truncated = torch.cat(
+        [
+            fragment.get("truncated", torch.zeros_like(fragment["reward"], dtype=torch.bool)).reshape(-1).bool().cpu()
+            for fragment in fragments
+        ],
+        dim=0,
+    )
+    bootstrap_valid_flags = []
+    bootstrap_value_raw_values = []
+    bootstrap_value_norm_values = []
+    for fragment in fragments:
+        bootstrap_valid_raw = fragment.get("bootstrap_valid", False)
+        if isinstance(bootstrap_valid_raw, torch.Tensor):
+            bootstrap_valid = bool(bootstrap_valid_raw.detach().reshape(-1)[0].item())
+        else:
+            bootstrap_valid = bool(bootstrap_valid_raw)
+        bootstrap_valid_flags.append(bootstrap_valid)
+        if bootstrap_valid:
+            bootstrap_raw = fragment.get("bootstrap_value_raw", fragment.get("bootstrap_value", 0.0))
+            bootstrap_norm = fragment.get("bootstrap_value_norm", 0.0)
+            bootstrap_value_raw_values.append(float(bootstrap_raw.detach().reshape(-1)[0].item()) if isinstance(bootstrap_raw, torch.Tensor) else float(bootstrap_raw))
+            bootstrap_value_norm_values.append(float(bootstrap_norm.detach().reshape(-1)[0].item()) if isinstance(bootstrap_norm, torch.Tensor) else float(bootstrap_norm))
+
+    def _stats(prefix: str, values: torch.Tensor) -> Dict[str, float]:
+        if values.numel() == 0:
+            return {f"{prefix}_mean": 0.0, f"{prefix}_std": 0.0, f"{prefix}_min": 0.0, f"{prefix}_max": 0.0}
+        return {
+            f"{prefix}_mean": float(values.mean().item()),
+            f"{prefix}_std": float(values.std(unbiased=False).item()),
+            f"{prefix}_min": float(values.min().item()),
+            f"{prefix}_max": float(values.max().item()),
+        }
+
+    stats = {}
+    stats.update(_stats("return_raw", returns))
+    stats.update(
+        {
+            "old_value_raw_mean": float(old_value_raw.mean().item()) if old_value_raw.numel() > 0 else 0.0,
+            "old_value_raw_std": float(old_value_raw.std(unbiased=False).item()) if old_value_raw.numel() > 0 else 0.0,
+            "old_value_norm_mean": float(old_value_norm.mean().item()),
+            "old_value_norm_std": float(old_value_norm.std(unbiased=False).item()),
+            "bootstrap_value_raw_mean": float(np.mean(bootstrap_value_raw_values)) if bootstrap_value_raw_values else 0.0,
+            "bootstrap_value_raw_std": float(np.std(bootstrap_value_raw_values)) if bootstrap_value_raw_values else 0.0,
+            "bootstrap_value_norm_mean": float(np.mean(bootstrap_value_norm_values)) if bootstrap_value_norm_values else 0.0,
+            "bootstrap_value_norm_std": float(np.std(bootstrap_value_norm_values)) if bootstrap_value_norm_values else 0.0,
+            "bootstrap_valid_ratio": float(sum(1 for flag in bootstrap_valid_flags if flag) / max(1, len(bootstrap_valid_flags))),
+            "truncated_ratio": float(truncated.float().mean().item()) if truncated.numel() > 0 else 0.0,
+        }
+    )
+    return stats
+
+
+@torch.no_grad()
+def calibrate_value_normalizer(model, fragments: List[Dict], device: str) -> Dict[str, float]:
+    if not fragments:
+        return {"normalizer_mean": 0.0, "normalizer_std": 1.0}
+    normalizer = model.value_head.normalizer
+    previous_training = bool(normalizer.training)
+    normalizer.train(True)
+    try:
+        for fragment in fragments:
+            returns = fragment["returns"].reshape(1, -1, 1).to(device=device, dtype=torch.float32)
+            model.value_head.normalize(returns)
+    finally:
+        normalizer.train(previous_training)
+    mean, var = normalizer.running_mean_var()
+    return {
+        "normalizer_mean": float(mean.reshape(-1)[0].detach().cpu().item()),
+        "normalizer_std": float(torch.sqrt(var.reshape(-1)[0]).detach().cpu().item()),
+    }
+
+
+@torch.no_grad()
+def measure_value_diagnostics(
+    model,
+    fragments: List[Dict],
+    device: str,
+    cfg_coef: float,
+    cfg_policy_mode: str,
+    base_model,
+) -> Dict[str, float]:
+    if not fragments:
+        return {
+            "explained_variance_raw": 0.0,
+            "pred_value_raw_mean": 0.0,
+            "pred_value_raw_std": 0.0,
+        }
+
+    predictions = []
+    targets = []
+    for fragment in fragments:
+        obs = build_model_input(fragment, device)
+        _, vpred = forward_policy_outputs(
+            model,
+            obs,
+            cfg_coef,
+            cfg_policy_mode=cfg_policy_mode,
+            base_model=base_model,
+        )
+        vpred_raw = model.value_head.denormalize(vpred).reshape(-1).detach().cpu()
+        returns_raw = fragment["returns"].reshape(-1).float().cpu()
+        predictions.append(vpred_raw)
+        targets.append(returns_raw)
+
+    pred = torch.cat(predictions, dim=0)
+    target = torch.cat(targets, dim=0)
+    target_var = torch.var(target, unbiased=False)
+    error_var = torch.var(target - pred, unbiased=False)
+    explained_variance = 0.0
+    if float(target_var.item()) > 1e-8:
+        explained_variance = float((1.0 - error_var / (target_var + 1e-8)).item())
+    return {
+        "explained_variance_raw": explained_variance,
+        "pred_value_raw_mean": float(pred.mean().item()),
+        "pred_value_raw_std": float(pred.std(unbiased=False).item()),
+    }
 
 
 @torch.no_grad()
@@ -698,7 +854,7 @@ def compute_fragment_loss(
     obs = build_model_input(fragment_view, device)
     action = unsqueeze_tree(to_device_tree(fragment_view["action"], device), 0)
     old_logprob = fragment_view["old_logprob"].unsqueeze(0).to(device)
-    old_vpred = fragment_view["old_value"].unsqueeze(0).unsqueeze(-1).to(device)
+    old_vpred = fragment_view.get("old_value_norm", fragment_view["old_value"]).unsqueeze(0).unsqueeze(-1).to(device)
     returns = fragment_view["returns"].unsqueeze(0).unsqueeze(-1).to(device)
     advantages = fragment_view["advantages"].unsqueeze(0).to(device)
     raw_advantages = fragment_view["advantages"]
@@ -736,7 +892,15 @@ def compute_fragment_loss(
 
     vf_loss_unclipped = 0.5 * model.value_head.loss(vpred, returns, reduction="none")
     if clip_vloss:
-        vpred_clipped = old_vpred + torch.clamp(vpred - old_vpred, -ppo_clip, ppo_clip)
+        old_value_raw = fragment_view.get("old_value_raw")
+        if old_value_raw is not None:
+            with torch.no_grad():
+                old_vpred_for_clip = model.value_head.normalize(
+                    old_value_raw.unsqueeze(0).unsqueeze(-1).to(device=device, dtype=torch.float32)
+                )
+        else:
+            old_vpred_for_clip = old_vpred
+        vpred_clipped = old_vpred_for_clip + torch.clamp(vpred - old_vpred_for_clip, -ppo_clip, ppo_clip)
         vf_loss_clipped = 0.5 * model.value_head.loss(vpred_clipped, returns, reduction="none")
         value_loss = weighted_time_mean(torch.max(vf_loss_unclipped, vf_loss_clipped), loss_weights)
     else:
@@ -861,7 +1025,14 @@ def main():
         torch.cuda.empty_cache()
 
     model = load_policy_from_source(args.model_path, args.model_kind).to(device)
+    if args.zero_initial_vf and int(args.iteration_idx) <= 1:
+        for param in model.value_head.parameters():
+            param.data.zero_()
     model.eval()
+    dataset_stats = summarize_fragment_dataset(fragments)
+    calibration_stats = {"normalizer_mean": 0.0, "normalizer_std": 1.0}
+    if args.calibrate_value_normalizer:
+        calibration_stats = calibrate_value_normalizer(model, fragments, device)
     unfrozen_modules = set_trainable_scope(model, args.trainable_scope)
     trainable_params = [param for param in model.parameters() if param.requires_grad]
     if not trainable_params:
@@ -877,6 +1048,8 @@ def main():
         base_model=base_ref_model,
     )
     print(json.dumps({"event": "sanity_preupdate", **sanity_preupdate}, ensure_ascii=False))
+    print(json.dumps({"event": "fragment_dataset", **dataset_stats}, ensure_ascii=False))
+    print(json.dumps({"event": "value_normalizer_calibration", **calibration_stats}, ensure_ascii=False))
     ref_model = None
     if ref_model is not None:
         ref_model.eval()
@@ -893,6 +1066,10 @@ def main():
 
     for epoch in range(args.epochs):
         random.shuffle(fragments)
+        warmup_active = int(args.iteration_idx) <= int(args.vf_warmup_iters)
+        effective_policy_coef = 0.0 if warmup_active else float(args.policy_coef)
+        effective_entropy_coef = 0.0 if warmup_active else float(args.entropy_coef)
+        effective_kl_coef = 0.0 if warmup_active else float(args.kl_coef)
         epoch_stats = {
             "epoch": epoch + 1,
             "num_fragments": len(fragments),
@@ -903,6 +1080,7 @@ def main():
             "mean_kl_divergence": 0.0,
             "mean_approx_kl": 0.0,
             "mean_clip_fraction": 0.0,
+            "mean_grad_norm": 0.0,
         }
 
         for batch_start in range(0, len(fragments), update_fragment_batch_size):
@@ -920,9 +1098,9 @@ def main():
                     cfg_policy_mode=args.cfg_policy_mode,
                     ppo_clip=args.ppo_clip,
                     vf_coef=args.vf_coef,
-                    policy_coef=args.policy_coef,
-                    entropy_coef=args.entropy_coef,
-                    kl_coef=args.kl_coef,
+                    policy_coef=effective_policy_coef,
+                    entropy_coef=effective_entropy_coef,
+                    kl_coef=effective_kl_coef,
                     clip_vloss=args.clip_vloss,
                     normalize_advantage=args.normalize_advantage,
                     advantage_mean=advantage_mean,
@@ -935,14 +1113,34 @@ def main():
                 )
                 (loss_dict["total_loss"] / float(batch_size)).backward()
                 for key in list(epoch_stats.keys())[2:]:
+                    if key == "mean_grad_norm":
+                        continue
                     stat_key = key.replace("mean_", "")
                     epoch_stats[key] += float(loss_dict[stat_key].item())
-            clip_grad_norm_(trainable_params, args.max_grad_norm)
+            grad_norm = clip_grad_norm_(trainable_params, args.max_grad_norm)
+            epoch_stats["mean_grad_norm"] += float(grad_norm.item() if isinstance(grad_norm, torch.Tensor) else grad_norm)
             optimizer.step()
 
         denom = float(len(fragments))
         for key in list(epoch_stats.keys())[2:]:
-            epoch_stats[key] /= denom
+            if key == "mean_grad_norm":
+                epoch_stats[key] /= max(1.0, math.ceil(len(fragments) / update_fragment_batch_size))
+            else:
+                epoch_stats[key] /= denom
+        epoch_stats["warmup_active"] = bool(warmup_active)
+        epoch_stats["effective_policy_coef"] = float(effective_policy_coef)
+        epoch_stats["effective_entropy_coef"] = float(effective_entropy_coef)
+        epoch_stats["effective_kl_coef"] = float(effective_kl_coef)
+        epoch_stats.update(
+            measure_value_diagnostics(
+                model=model,
+                fragments=fragments,
+                device=device,
+                cfg_coef=args.cfg_coef,
+                cfg_policy_mode=args.cfg_policy_mode,
+                base_model=base_ref_model,
+            )
+        )
         history.append(epoch_stats)
         print(json.dumps(epoch_stats, ensure_ascii=False))
 
@@ -971,10 +1169,16 @@ def main():
             "loss_focus_top_k": int(args.loss_focus_top_k),
             "fragments": len(fragments),
             "trainable_scope": args.trainable_scope,
+            "iteration_idx": int(args.iteration_idx),
+            "vf_warmup_iters": int(args.vf_warmup_iters),
+            "zero_initial_vf": bool(args.zero_initial_vf),
+            "calibrate_value_normalizer": bool(args.calibrate_value_normalizer),
             "unfrozen_modules": unfrozen_modules,
             "trainable_parameter_count": trainable_parameter_count,
             "frozen_parameter_count": frozen_parameter_count,
             "sanity_preupdate": sanity_preupdate,
+            "fragment_dataset": dataset_stats,
+            "value_normalizer_calibration": calibration_stats,
             "history": history,
         },
     )
@@ -1009,10 +1213,16 @@ def main():
                 "advantage_mean": advantage_mean,
                 "advantage_std": advantage_std,
                 "trainable_scope": args.trainable_scope,
+                "iteration_idx": int(args.iteration_idx),
+                "vf_warmup_iters": int(args.vf_warmup_iters),
+                "zero_initial_vf": bool(args.zero_initial_vf),
+                "calibrate_value_normalizer": bool(args.calibrate_value_normalizer),
                 "unfrozen_modules": unfrozen_modules,
                 "trainable_parameter_count": trainable_parameter_count,
                 "frozen_parameter_count": frozen_parameter_count,
                 "sanity_preupdate": sanity_preupdate,
+                "fragment_dataset": dataset_stats,
+                "value_normalizer_calibration": calibration_stats,
             },
             indent=2,
             ensure_ascii=False,

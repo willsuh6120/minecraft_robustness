@@ -202,7 +202,8 @@ def build_episode_fragment(
     fragment_steps: List[Dict],
     trainable: bool,
     stop_reason: str,
-    bootstrap_value: float = 0.0,
+    bootstrap_value_raw: float = 0.0,
+    bootstrap_value_norm: float = 0.0,
     bootstrap_valid: bool = False,
     bootstrap_reason: str = "",
 ):
@@ -223,6 +224,8 @@ def build_episode_fragment(
         "action": _stack_tensor_tree([step["action"] for step in fragment_steps]),
         "old_logprob": _stack_tensor_tree([step["old_logprob"] for step in fragment_steps]).float(),
         "old_value": _stack_tensor_tree([step["old_value"] for step in fragment_steps]).float(),
+        "old_value_norm": _stack_tensor_tree([step["old_value_norm"] for step in fragment_steps]).float(),
+        "old_value_raw": _stack_tensor_tree([step["old_value_raw"] for step in fragment_steps]).float(),
         "reward": _stack_tensor_tree([step["reward"] for step in fragment_steps]).float(),
         "done": _stack_tensor_tree([step["done"] for step in fragment_steps]).bool(),
         "env_done": _stack_tensor_tree([step["env_done"] for step in fragment_steps]).bool(),
@@ -233,7 +236,9 @@ def build_episode_fragment(
         "interaction_type": [str(step["interaction_type"]) for step in fragment_steps],
         "prompt_text": [str(step["prompt_text"]) for step in fragment_steps],
         "segment_area": _stack_tensor_tree([step["segment_area"] for step in fragment_steps]).long(),
-        "bootstrap_value": float(bootstrap_value),
+        "bootstrap_value": float(bootstrap_value_raw),
+        "bootstrap_value_raw": float(bootstrap_value_raw),
+        "bootstrap_value_norm": float(bootstrap_value_norm),
         "bootstrap_valid": bool(bootstrap_valid),
         "bootstrap_reason": str(bootstrap_reason),
     }
@@ -251,13 +256,13 @@ def build_episode_fragment(
 
 def compute_fragment_bootstrap(session: Session, stop_reason: str):
     if bool(session.last_terminated):
-        return 0.0, False, "terminated"
+        return 0.0, 0.0, False, "terminated"
     if bool(session.last_truncated) or str(stop_reason) == "max_steps":
         value = session.estimate_current_policy_value()
         if value is not None:
             reason = "truncated" if bool(session.last_truncated) else "max_steps"
-            return float(value), True, reason
-    return 0.0, False, str(stop_reason)
+            return float(value.get("value_raw", 0.0)), float(value.get("value_norm", 0.0)), True, reason
+    return 0.0, 0.0, False, str(stop_reason)
 
 
 def build_error_result(
@@ -302,7 +307,11 @@ def capture_fragment_step(
 ):
     if session.last_model_input is None or session.last_policy_action is None:
         return None
-    if session.last_policy_logprob is None or session.last_policy_value is None:
+    if (
+        session.last_policy_logprob is None
+        or session.last_policy_value is None
+        or session.last_policy_value_raw is None
+    ):
         return None
 
     result = {
@@ -316,6 +325,8 @@ def capture_fragment_step(
         "action": _clone_tensor_tree(session.last_policy_action),
         "old_logprob": torch.tensor(float(session.last_policy_logprob), dtype=torch.float32),
         "old_value": torch.tensor(float(session.last_policy_value), dtype=torch.float32),
+        "old_value_norm": torch.tensor(float(session.last_policy_value), dtype=torch.float32),
+        "old_value_raw": torch.tensor(float(session.last_policy_value_raw), dtype=torch.float32),
         "reward": torch.tensor(float(rl_reward), dtype=torch.float32),
         "done": torch.tensor(bool(session.last_terminated or session.last_truncated), dtype=torch.bool),
         "env_done": torch.tensor(bool(session.last_terminated or session.last_truncated), dtype=torch.bool),
@@ -361,6 +372,8 @@ def capture_step_snapshot(
         "last_action_summary": session.last_action_summary,
         "policy_logprob": session.last_policy_logprob,
         "policy_value": session.last_policy_value,
+        "policy_value_norm": session.last_policy_value,
+        "policy_value_raw": session.last_policy_value_raw,
         "segment_area": int(session.last_segment_area),
         "player_pos": player_pos,
         "inventory_totals": inventory_totals(info),
@@ -534,7 +547,7 @@ def run_posttrain_episode(
     if not stop_reason:
         stop_reason = "max_steps"
 
-    bootstrap_value, bootstrap_valid, bootstrap_reason = compute_fragment_bootstrap(
+    bootstrap_value_raw, bootstrap_value_norm, bootstrap_valid, bootstrap_reason = compute_fragment_bootstrap(
         session=session,
         stop_reason=stop_reason,
     )
@@ -563,7 +576,8 @@ def run_posttrain_episode(
             fragment_steps=fragment_steps,
             trainable=bool(trainable and reward_supported),
             stop_reason=stop_reason,
-            bootstrap_value=bootstrap_value,
+            bootstrap_value_raw=bootstrap_value_raw,
+            bootstrap_value_norm=bootstrap_value_norm,
             bootstrap_valid=bootstrap_valid,
             bootstrap_reason=bootstrap_reason,
         ),
