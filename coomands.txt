@@ -1,0 +1,69 @@
+TASK_GROUP_PATH=/home/willsuh1114/minecraft/Minestudio/outputs/evaluate_rocket/p_obstacle_maze_t6_uniform_reward_vm_20260505_132138/assets/20260505_132138/eval_bank/instance_000/generated_task_groups/20260505_132138 \
+TASK=mine_coal \
+BASE_SEED=1 \
+PROTOCOL=ours_v1 \
+bash scripts/rebake_goal_from_task_group_vm.shMinestudio/tests
+
+TASK_GROUP_PATH=/home/willsuh1114/minecraft/Minestudio/outputs/evaluate_rocket/p_obstacle_maze_t6_uniform_reward_vm_20260505_132138/assets/20260505_132138/eval_bank/instance_000/generated_task_groups/20260505_132138 \
+TASK=mine_coal \
+BASE_SEED=1 \
+PROTOCOL=ours_v1 \
+bash scripts/rebake_goal_from_task_group_vm.sh
+
+TASK_GROUP_PATH=/home/willsuh1114/minecraft/Minestudio/outputs/evaluate_rocket/p_obstacle_maze_t6_uniform_reward_vm_20260505_134507/assets/20260505_134507/eval_bank/instance_000/generated_task_groups/20260505_134507 \
+TASK=mine_coal \
+BASE_SEED=1 \
+PROTOCOL=ours_v1 \
+bash scripts/rebake_goal_from_task_group_vm.sh
+
+ASSET_DIR=/home/willsuh1114/minecraft/Minestudio/outputs/evaluate_rocket/p_obstacle_maze_t6_uniform_reward_vm_20260505_134507/assets/20260505_134507 \
+WORLD_NAMES_CSV=left_lane_z1_t6,right_chicane_t6,right_outer_detour_t6 \
+bash scripts/run_maze_t6_goal_rebake_and_rollout_3worlds_vm.sh
+
+ASSET_DIR=/home/willsuh1114/minecraft/Minestudio/outputs/evaluate_rocket/p_obstacle_maze_t6_uniform_reward_vm_20260505_134507/assets/20260505_134507 \
+WORLD_NAMES_CSV=left_lane_z1_t6,right_chicane_t6,right_outer_detour_t6 \
+bash scripts/run_maze_t6_goal_rebake_and_rollout_3worlds_vm.sh
+
+ASSET_DIR=/home/willsuh1114/minecraft/Minestudio/outputs/evaluate_rocket/p_obstacle_maze_t6_uniform_reward_vm_20260505_134507/assets/20260505_134507 \
+WORLD_NAMES_CSV=left_lane_z1_t6 \
+bash scripts/run_maze_t6_goal_rebake_and_rollout_3worlds_vm.sh
+
+rm -rf ~/gyulab/minecraft/.minestudio/engine \
+        ~/gyulab/minecraft/.minestudio/engine.zip \
+        ~/gyulab/minecraft/.minestudio/engine_extract_* \
+        ~/gyulab/minecraft/.minestudio/.engine_install.lock
+
+python - <<'PY'
+from minestudio.simulator.entry import check_engine
+check_engine(skip_confirmation=True)
+print("engine ok")
+PY
+
+
+MINESTUDIO_DIR=~/minecraft/.minestudio python - <<'PY'
+from minestudio.simulator.entry import check_engine
+check_engine(skip_confirmation=True)
+print("engine ok")
+PY
+
+rm -rf ~/minecraft/.minestudio/engine \
+        ~/minecraft/.minestudio/engine.zip \
+        ~/minecraft/.minestudio/engine_extract_* \
+        ~/minecraft/.minestudio/.engine_install.lock \
+        ~/.cache/MineStudio/engine \
+        ~/.cache/MineStudio/engine.zip \
+        ~/.cache/MineStudio/engine_extract_* \
+        ~/.cache/MineStudio/.engine_install.lock
+
+ASSET_DIR=/home/willsuh1114/minecraft/Minestudio/outputs/evaluate_rocket/p_obstacle_maze_t6_control_vm_rebuild_20260506_183915/assets/20260506_183915 \
+RUN_TAG=p_obstacle_maze_t6_control_vm_retry_$(date +%Y%m%d_%H%M%S) \
+RUN_VIDEO_PROBE=1 \
+RUN_CONTROL_A=1 \
+RUN_MAIN_B=0 \
+bash scripts/run_p_obstacle_maze_t6_control_vm_fresh.sh
+
+chmod +x ~/minecraft/Minestudio/scripts/run_p_obstacle_maze_t6_mastery_main_local.sh \
+          ~/minecraft/Minestudio/scripts/run_p_obstacle_maze_t6_mastery_suite.sh \
+          ~/minecraft/Minestudio/scripts/run_p_obstacle_maze_t6_family_cv_main_local.sh \
+          ~/minecraft/Minestudio/scripts/run_p_obstacle_maze_t6_family_cv_suite.sh
+

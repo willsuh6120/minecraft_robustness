@@ -1,0 +1,84 @@
+name: Deploy the docs to RTD
+
+on:
+  push:
+    branches: [master]
+    paths: # 当更改以下文件时，会触发Actions更新文档
+      - "minestudio/**"
+      - "docs/**"
+      - ".github/workflows/deploy_docs_to_rtd.yml"
+
+env:
+  REPO_SSH: git@github.com:CraftJarvis/MineStudio.git
+  CLONE_URL: ${{ github.event.repository.clone_url }}
+  USER_NAME: phython96
+  USER_EMAIL: phython96@gmail.com
+  SUBMIT_BRANCH: gh-pages
+  PACKAGE_NAME: minestudio
+
+jobs:
+  Deploy_TO_RTD:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          architecture: "x64"
+
+      - name: Set SSH Environment
+        env:
+          SSH_PRIVATE: ${{ secrets.SSH_PRIVATE }}
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$SSH_PRIVATE" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          chmod 700 ~/.ssh && chmod 600 ~/.ssh/*
+          git config --global user.name $USER_NAME
+          git config --global user.email $USER_EMAIL
+
+      - name: Summit repo to gh-pages branch.
+        run: |
+          ls
+          git pull
+
+          cd docs
+
+          echo "Update requirements and add packages needed by sphinx"
+
+          echo "replace mermaid to {mermaid}"
+          sed -i 's/mermaid/{mermaid}/g' ../README.md
+
+          ls
+          cp ../README.md source/
+
+          echo "Generate the api doc"
+          pip install 'sphinx>=2.1'
+          pip install -r requirements.txt
+
+          git tag
+          git status
+          sphinx-multiversion --dump-metadata source build/html  
+          sphinx-multiversion source build/html 
+
+          git clone -b ${SUBMIT_BRANCH} $CLONE_URL ${SUBMIT_BRANCH}
+          cd ${SUBMIT_BRANCH}
+
+          rm -rf *
+          mkdir -p ./docs
+
+          ls ../build/html/
+          echo "Copy the generated docs to the gh-pages branch"
+
+          mv ../build/html/master/* ./docs/
+          mv ../build/html/* ./docs/
+          touch ./docs/.nojekyll
+
+          git add .
+          git status
+          git remote remove origin
+          git remote add origin ${REPO_SSH}
+          git commit -m 'Actions auto update' && git push -f origin ${SUBMIT_BRANCH} || echo "No changes to commit"

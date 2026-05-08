@@ -1,0 +1,12 @@
+time_limit: 150
+text: Interact with the left chest.
+custom_init_commands:
+  - "/time set day"
+  - "/weather clear"
+  - "/gamerule doDaylightCycle false"
+  - "/execute as @p at @s run fill ~-16 ~ ~-16 ~16 ~8 ~16 minecraft:air"
+  - "/execute as @p at @s run fill ~-16 ~-1 ~-16 ~16 ~-1 ~16 minecraft:grass_block"
+  - "/execute as @p at @s run fill ~-16 ~-4 ~-16 ~16 ~-2 ~16 minecraft:dirt"
+  - "/execute as @p at @s run setblock ^-2 ^0 ^5 minecraft:chest[facing=north]"
+  - "/execute as @p at @s run setblock ^0 ^0 ^5 minecraft:chest[facing=north]"
+  - "/execute as @p at @s run setblock ^2 ^0 ^5 minecraft:chest[facing=north]"

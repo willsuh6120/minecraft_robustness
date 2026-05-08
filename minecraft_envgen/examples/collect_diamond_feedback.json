@@ -1,0 +1,44 @@
+{
+  "run_id": "stage_4_eval_2",
+  "split": "eval",
+  "reset_mode": "clean",
+  "scalar_metrics": {
+    "success_rate": 0.07,
+    "avg_return": 1.8,
+    "diamond_seen_rate": 0.19
+  },
+  "failure_evidence": [
+    {
+      "modality": "inventory_trace",
+      "summary": "The agent reaches iron acquisition in several episodes but does not convert that state into diamond collection before termination.",
+      "uri": "/tmp/evidence/inventory_trace.json",
+      "metadata": {
+        "episodes": 12
+      }
+    },
+    {
+      "modality": "video_clip",
+      "summary": "Two clipped rollouts show repeated vertical mining in mountain stone without torch placement or branch exploration.",
+      "uri": "/tmp/evidence/diamond_failures.mp4",
+      "metadata": {
+        "episodes": [
+          3,
+          9
+        ]
+      }
+    },
+    {
+      "modality": "privileged_observation",
+      "summary": "Voxel slices indicate nearby ore pockets are visible late in the trajectory, but the agent fails to orient or descend toward them.",
+      "metadata": {
+        "source": "voxel_stack"
+      }
+    }
+  ],
+  "verifier_notes": [
+    "Evaluation used clean resets only.",
+    "Current skill label and intervention family remain consistent."
+  ],
+  "episode_count": 24,
+  "notes": "This packet is intended for LLM curriculum updates and not for direct reward shaping."
+}

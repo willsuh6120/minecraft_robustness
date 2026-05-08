@@ -1,0 +1,66 @@
+{
+  "draft_id": "diamond-bootstrap-v1",
+  "target_skill": "collect_diamond",
+  "intervention_family": "resource_boost",
+  "difficulty": "medium",
+  "task_class": "harvest",
+  "interventions": {
+    "spawn_biome": "mountains",
+    "weather": "clear",
+    "time_of_day": "day",
+    "allow_time_passage": true,
+    "start_food": 18,
+    "start_health": 20,
+    "random_tp_range": 800,
+    "break_speed_multiplier": 1.25,
+    "resource_multipliers": {
+      "diamond_ore": 2.0,
+      "iron_ore": 1.5
+    },
+    "mob_spawns": [
+      {
+        "name": "zombie",
+        "number": 1,
+        "range_x": [
+          -8,
+          8
+        ],
+        "range_z": [
+          -8,
+          8
+        ]
+      }
+    ],
+    "start_position": {
+      "x": 0,
+      "y": 68,
+      "z": 0
+    }
+  },
+  "initial_inventory": {
+    "wood_pickaxe": 1,
+    "stone": 16,
+    "torch": 8
+  },
+  "privileged_observations": [
+    "voxel",
+    "inventory"
+  ],
+  "rationale": "The agent reaches early mining but fails to bridge from iron access to diamond collection. The curriculum increases mountain access, shortens tool bootstrap, and exposes local geometry through voxel observations.",
+  "metadata": {
+    "task_id": "harvest_diamond",
+    "seed": 7,
+    "image_size": [
+      128,
+      128
+    ],
+    "voxel_size": {
+      "xmin": -4,
+      "xmax": 4,
+      "ymin": -4,
+      "ymax": 4,
+      "zmin": -4,
+      "zmax": 4
+    }
+  }
+}

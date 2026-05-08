@@ -1,0 +1,11 @@
+time_limit: 150
+text: Place minecart on the rail.
+custom_init_commands:
+  - "/time set day"
+  - "/weather clear"
+  - "/gamerule doDaylightCycle false"
+  - "/give @p minecraft:minecart 1"
+  - "/execute as @p at @s run fill ~-16 ~ ~-16 ~16 ~8 ~16 minecraft:air"
+  - "/execute as @p at @s run fill ~-16 ~-1 ~-16 ~16 ~-1 ~16 minecraft:grass_block"
+  - "/execute as @p at @s run fill ~-16 ~-4 ~-16 ~16 ~-2 ~16 minecraft:dirt"
+  - "/execute as @p at @s run fill ^-3 ^0 ^4 ^3 ^0 ^4 minecraft:rail"

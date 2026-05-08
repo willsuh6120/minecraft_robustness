@@ -1,0 +1,44 @@
+{
+  "draft_id": "stone-bootstrap-v1",
+  "target_skill": "collect_stone",
+  "intervention_family": "inventory_bootstrap",
+  "difficulty": "easy",
+  "task_class": "harvest",
+  "interventions": {
+    "spawn_biome": "mountains",
+    "weather": "clear",
+    "time_of_day": "day",
+    "random_tp_range": 200,
+    "start_position": {
+      "x": 0,
+      "y": 72,
+      "z": 0
+    }
+  },
+  "initial_inventory": {
+    "wood_pickaxe": 1,
+    "torch": 8,
+    "bread": 3
+  },
+  "privileged_observations": [
+    "inventory"
+  ],
+  "rationale": "This bootstrap setting shortens the tool chain by giving a wooden pickaxe and spawning the agent in a mountain biome with exposed surface stone.",
+  "metadata": {
+    "task_id": "harvest_stone_easy",
+    "seed": 5,
+    "image_size": [
+      128,
+      128
+    ],
+    "timestep_limit": 800,
+    "voxel_size": {
+      "xmin": -4,
+      "xmax": 4,
+      "ymin": -4,
+      "ymax": 4,
+      "zmin": -4,
+      "zmax": 4
+    }
+  }
+}

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="${ROOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+
+RUN_TAG="${RUN_TAG:-p_obstacle_hard_v5_open_path_$(date +%Y%m%d_%H%M%S)}"
+MASTER_ROOT="${MASTER_ROOT:-${ROOT_DIR}/outputs/evaluate_rocket/p_obstacle_hard_v5_open_path_calibration/${RUN_TAG}}"
+
+P_OBSTACLE_VARIANT_SET="${P_OBSTACLE_VARIANT_SET:-hard_v5_o2_open_path}"
+P_OBSTACLE_HEIGHT="${P_OBSTACLE_HEIGHT:-2}"
+BANK_WORKERS="${BANK_WORKERS:-4}"
+VIDEO_EPISODES="${VIDEO_EPISODES:-1}"
+VIDEO_WORKERS="${VIDEO_WORKERS:-4}"
+BASELINE_EPISODES="${BASELINE_EPISODES:-16}"
+BASELINE_WORKERS="${BASELINE_WORKERS:-4}"
+GEOMETRY_MD="${GEOMETRY_MD:-${MASTER_ROOT}/hard_v5_open_path_geometry.md}"
+
+RUN_TAG="${RUN_TAG}" \
+MASTER_ROOT="${MASTER_ROOT}" \
+P_OBSTACLE_VARIANT_SET="${P_OBSTACLE_VARIANT_SET}" \
+P_OBSTACLE_HEIGHT="${P_OBSTACLE_HEIGHT}" \
+BANK_WORKERS="${BANK_WORKERS}" \
+VIDEO_EPISODES="${VIDEO_EPISODES}" \
+VIDEO_WORKERS="${VIDEO_WORKERS}" \
+BASELINE_EPISODES="${BASELINE_EPISODES}" \
+BASELINE_WORKERS="${BASELINE_WORKERS}" \
+GEOMETRY_MD="${GEOMETRY_MD}" \
+bash "${ROOT_DIR}/scripts/run_p_obstacle_hard_v4_calibration_local.sh"

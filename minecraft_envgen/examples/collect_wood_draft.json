@@ -1,0 +1,34 @@
+{
+  "draft_id": "wood-forest-bootstrap-v1",
+  "target_skill": "collect_wood",
+  "intervention_family": "spawn_control",
+  "difficulty": "easy",
+  "task_class": "harvest",
+  "interventions": {
+    "spawn_biome": "forest",
+    "weather": "clear",
+    "time_of_day": "day",
+    "random_tp_range": 200,
+    "start_position": {
+      "x": 0,
+      "y": 68,
+      "z": 0
+    }
+  },
+  "initial_inventory": {
+    "bread": 3
+  },
+  "privileged_observations": [
+    "inventory"
+  ],
+  "rationale": "A short-horizon forest spawn should make nearby logs easy to find and turn collect_wood into a clean first-stage curriculum task for VPT-RL.",
+  "metadata": {
+    "task_id": "harvest_logs_easy",
+    "seed": 3,
+    "image_size": [
+      128,
+      128
+    ],
+    "timestep_limit": 600
+  }
+}

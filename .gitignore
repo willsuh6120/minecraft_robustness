@@ -1,0 +1,10 @@
+/.agents/
+/.codex/
+/.claude/
+/.minestudio/
+
+/p_obstacle_maze_t6_main_local_fresh_*/
+
+**/__pycache__/
+*.py[cod]
+.DS_Store

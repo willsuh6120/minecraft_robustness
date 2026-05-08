@@ -1,0 +1,220 @@
+.bd-main .bd-content .bd-article-container {
+    max-width: 80%;  /* default is 60em */
+}
+
+.bd-page-width {
+    max-width: 95%;  /* default is 88rem */
+}
+
+.bd-sidebar {
+    width: 17rem; /* 左侧导航栏宽度 */
+}
+
+/* 调整右侧工具栏宽度 */
+.bd-toc {
+    width: 20rem; /* 右侧工具栏宽度 */
+}
+
+div.admonition.admonition-youtube {
+    border-color: hsl(0deg 100% 50%); /* YouTube red */
+  }
+  
+  div.admonition.admonition-youtube > .admonition-title {
+    background-color: hsl(0deg 99% 18%);
+    color: white;
+  }
+  
+  div.admonition.admonition-youtube > .admonition-title::after {
+    color: hsl(0deg 100% 50%);
+    content: "\f26c"; /* fa-solid fa-tv */
+  }
+
+/* --- Root Variables for Easy Customization --- */
+:root {
+  --table-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --table-font-size: 0.95em;
+  --header-bg-color: #2c3e50;
+  /* Dark blue-grey */
+  --header-text-color: #ecf0f1;
+  /* Light grey */
+  --row-hover-bg-color: #f0f4f8;
+  /* Light blueish grey */
+  --link-color: #3498db;
+  /* Bright blue */
+  --link-hover-color: #2980b9;
+  /* Darker blue */
+  --border-color-strong: #34495e;
+  /* Darker grey for main lines */
+  --border-color-medium: #bdc3c7;
+  /* Lighter grey for mid-rules */
+  --text-color-primary: #2d3748;
+  /* Dark grey for text */
+  --text-color-secondary: #4a5568;
+  /* Medium grey for less emphasis */
+  --table-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  --cell-padding: 12px 18px;
+}
+
+/* --- General Table Styling --- */
+.booktabs-table {
+  /* width: 100%; */
+  /* REMOVED to allow auto-width based on content */
+  /* max-width: 900px; */
+  /* REMOVE this too if you don't want an upper limit on width */
+  border-collapse: collapse;
+  margin: 2em auto;
+  /* Centers the table on the page */
+  font-family: var(--table-font-family);
+  font-size: var(--table-font-size);
+  color: var(--text-color-primary);
+  background-color: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  /* Important if you have border-radius and want children to respect it */
+  box-shadow: var(--table-shadow);
+  transition: box-shadow 0.3s ease-in-out;
+  /* display: inline-table; */
+  /* Alternative for true shrink-to-fit, but 'margin: auto' won't center it. Use text-align on parent. */
+}
+
+.booktabs-table:hover {
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  /* Enhanced shadow on hover */
+}
+
+/* --- Table Header (thead) --- */
+.booktabs-table thead {
+  background-color: var(--header-bg-color);
+  color: var(--header-text-color);
+}
+
+.booktabs-table thead tr {
+  /* \toprule - enhanced */
+  border-top: 3px solid var(--header-bg-color);
+  /* Thicker, matches header to hide underlying border */
+  /* \midrule - enhanced */
+  border-bottom: 2px solid var(--border-color-strong);
+}
+
+.booktabs-table th {
+  font-weight: 600;
+  /* Bolder than default, but not overly so */
+  text-align: left;
+  padding: var(--cell-padding);
+  text-transform: uppercase;
+  /* Optional: for a more formal header look */
+  letter-spacing: 0.5px;
+  /* Optional: slight letter spacing */
+  vertical-align: middle;
+  /* Align text vertically in the middle */
+}
+
+/* --- Table Body (tbody) --- */
+.booktabs-table tbody tr {
+  border-bottom: 1px solid #e2e8f0;
+  /* Light line between rows */
+  transition: background-color 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+
+.booktabs-table tbody tr:last-child {
+  /* \bottomrule - enhanced */
+  border-bottom: 3px solid var(--border-color-strong);
+}
+
+.booktabs-table tbody tr:hover {
+  background-color: var(--row-hover-bg-color);
+  /* transform: scale(1.01); /* Subtle zoom effect on row hover - can be too much for some */
+}
+
+.booktabs-table td {
+  padding: var(--cell-padding);
+  text-align: left;
+  vertical-align: middle;
+  /* Align text vertically in the middle */
+  color: var(--text-color-secondary);
+}
+
+.booktabs-table tbody tr td:first-child {
+  color: var(--text-color-primary);
+  /* Make first column text slightly more prominent */
+  font-weight: 500;
+}
+
+/* --- Link Styling --- */
+.booktabs-table a {
+  color: var(--link-color);
+  text-decoration: none;
+  font-weight: 500;
+  position: relative;
+  /* For pseudo-element underline */
+  transition: color 0.2s ease-in-out;
+}
+
+.booktabs-table a::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 1px;
+  bottom: -2px;
+  /* Position underline slightly below text */
+  left: 0;
+  background-color: var(--link-color);
+  visibility: hidden;
+  transform: scaleX(0);
+  transition: all 0.3s ease-in-out;
+}
+
+.booktabs-table a:hover {
+  color: var(--link-hover-color);
+}
+
+.booktabs-table a:hover::after {
+  visibility: visible;
+  transform: scaleX(1);
+  background-color: var(--link-hover-color);
+}
+
+/* --- Specific Column Styling (Example) --- */
+.booktabs-table td:nth-child(3),
+/* Copyright column */
+.booktabs-table th:nth-child(3) {
+  text-align: center;
+  /* Center align the Copyright column */
+}
+
+/* --- Optional: Adding an Icon to Links (requires HTML change or advanced CSS) --- */
+/* If you were to add <i class="icon-external-link"></i> after your link text in HTML:
+.booktabs-table a .icon-external-link {
+  margin-left: 5px;
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+*/
+
+/* --- Optional: Zebra Striping (if preferred over hover effect only) --- */
+/*
+.booktabs-table tbody tr:nth-of-type(even) {
+  background-color: #f9fafb;
+}
+.booktabs-table tbody tr:nth-of-type(even):hover {
+  background-color: var(--row-hover-bg-color); // Ensure hover is distinct
+}
+*/
+
+/* --- Responsive Considerations (Basic Example) --- */
+@media (max-width: 768px) {
+  .booktabs-table {
+    font-size: 0.85em;
+    box-shadow: none;
+    /* Simpler on mobile */
+    border-radius: 0;
+  }
+
+  .booktabs-table th,
+  .booktabs-table td {
+    padding: 8px 10px;
+  }
+
+  /* For very narrow screens, you might consider a "card" layout for each row,
+     but that requires significant CSS changes (e.g., display: block on tr, td) */
+}

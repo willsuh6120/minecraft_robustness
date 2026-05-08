@@ -1,0 +1,19 @@
+name: molmo-pointing
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pytorch=2.4.1
+  - torchvision=0.19.1
+  - pytorch-cuda=12.1
+  - pip
+  - pip:
+      - transformers==4.45.2
+      - accelerate==0.34.2
+      - numpy==1.26.4
+      - pillow
+      - requests
+      - einops
+      - protobuf

@@ -1,0 +1,21 @@
+time_limit: 180
+text: Hunt the cow while do not touch the sheep.
+custom_init_commands:
+  - "/time set day"
+  - "/weather clear"
+  - "/gamerule doDaylightCycle false"
+  - "/give @p minecraft:wooden_sword 1"
+  - "/execute as @p at @s run fill ~-24 ~ ~-24 ~24 ~8 ~24 minecraft:air"
+  - "/execute as @p at @s run fill ~-24 ~-1 ~-24 ~24 ~-1 ~24 minecraft:grass_block"
+  - "/execute as @p at @s run fill ~-24 ~-4 ~-24 ~24 ~-2 ~24 minecraft:dirt"
+  - "/execute as @p at @s run fill ^-8 ^0 ^5 ^-2 ^1 ^5 minecraft:oak_fence"
+  - "/execute as @p at @s run fill ^-8 ^0 ^10 ^-2 ^1 ^10 minecraft:oak_fence"
+  - "/execute as @p at @s run fill ^-8 ^0 ^5 ^-8 ^1 ^10 minecraft:oak_fence"
+  - "/execute as @p at @s run fill ^-2 ^0 ^5 ^-2 ^1 ^10 minecraft:oak_fence"
+  - "/execute as @p at @s run fill ^2 ^0 ^5 ^8 ^1 ^5 minecraft:oak_fence"
+  - "/execute as @p at @s run fill ^2 ^0 ^10 ^8 ^1 ^10 minecraft:oak_fence"
+  - "/execute as @p at @s run fill ^2 ^0 ^5 ^2 ^1 ^10 minecraft:oak_fence"
+  - "/execute as @p at @s run fill ^8 ^0 ^5 ^8 ^1 ^10 minecraft:oak_fence"
+  - "/execute as @p at @s run fill ^-1 ^0 ^5 ^1 ^1 ^5 minecraft:oak_fence"
+  - "/execute as @p at @s run summon minecraft:sheep ^-4 ^0 ^8 {Color:0b}"
+  - "/execute as @p at @s run summon minecraft:cow ^4 ^0 ^8"

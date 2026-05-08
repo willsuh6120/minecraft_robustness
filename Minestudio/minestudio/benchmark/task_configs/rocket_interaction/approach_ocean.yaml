@@ -1,0 +1,12 @@
+time_limit: 220
+text: Approach the ocean.
+custom_init_commands:
+  - "/time set day"
+  - "/weather clear"
+  - "/gamerule doDaylightCycle false"
+  - "/execute as @p at @s run fill ~-24 ~ ~-24 ~24 ~8 ~24 minecraft:air"
+  - "/execute as @p at @s run fill ~-24 ~-1 ~-24 ~24 ~-1 ~24 minecraft:grass_block"
+  - "/execute as @p at @s run fill ~-24 ~-4 ~-24 ~24 ~-2 ~24 minecraft:dirt"
+  - "/execute as @p at @s run fill ^-10 ^-1 ^10 ^10 ^-1 ^22 minecraft:water"
+  - "/execute as @p at @s run fill ^-11 ^-1 ^9 ^11 ^-1 ^9 minecraft:sand"
+  - "/execute as @p at @s run fill ^-11 ^-1 ^23 ^11 ^-1 ^23 minecraft:sand"
